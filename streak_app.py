@@ -12,7 +12,7 @@ except Exception:
 
 st.set_page_config(page_title="연속 상승/하락 현황", page_icon="📈", layout="wide")
 st.title("📈 연속 상승/하락 현황")
-st.caption("기준: 패턴 시작 '전날' 종가 대비 누적등락(%). 데이터: Yahoo Finance(지연/누락 가능)")
+st.caption("기준: 패턴 시작 '전날' 종가 대비 누적등락(%). 데이터: Yahoo Finance(일부 지연/누락 가능)")
 
 # ====== 연속 계산: 기준 = 패턴 시작 '전날' 종가 ======
 def streak_from_close_baseline_prevday(close: pd.Series, tol: float = 1e-6):
@@ -36,8 +36,7 @@ def streak_from_close_baseline_prevday(close: pd.Series, tol: float = 1e-6):
     a = close.to_numpy()
     idx = close.index.to_numpy()
     diff = a[1:] - a[:-1]
-    # 방향: +1 / -1 / 0
-    changes = np.where(diff > tol, 1, np.where(diff < -tol, -1, 0))
+    changes = np.where(diff > tol, 1, np.where(diff < -tol, -1, 0))  # +1/-1/0
 
     # 뒤에서부터 보합 제거 → 마지막 비보합 변화 인덱스 i
     i = len(changes) - 1
@@ -73,10 +72,25 @@ def streak_from_close_baseline_prevday(close: pd.Series, tol: float = 1e-6):
     streak = count if last_sign > 0 else -count
     return streak, last_close, pct_since, baseline_date, baseline_price
 
-# ====== 캐시된 데이터 가져오기 ======
+# ====== 캐시된 일봉 데이터 가져오기 ======
 @st.cache_data(ttl=60*60*6)
-def fetch(ticker: str, period: str):
+def fetch_daily(ticker: str, period: str):
     return yf.download(ticker, period=period, interval="1d", auto_adjust=True, progress=False)
+
+# ====== 현재가(지연/실시간) 조회 ======
+def fetch_live_price(ticker: str):
+    """
+    yfinance.fast_info에서 현재가(보통 지연)를 가져옵니다.
+    실패/미지원이면 None 반환.
+    """
+    try:
+        info = yf.Ticker(ticker).fast_info
+        # 일부 환경에서 dict가 아닐 수 있어 안전 처리
+        if hasattr(info, "get"):
+            return info.get("last_price", None)
+    except Exception:
+        pass
+    return None
 
 # ====== 기본 설정 ======
 DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL"
@@ -87,7 +101,7 @@ DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL"
 with st.sidebar:
     st.header("설정")
     tickers_text = st.text_area("종목들(쉼표로 구분)", value=DEFAULT_TICKERS, height=100)
-    period = st.selectbox("조회 기간", ["1mo","3mo","6mo","1y"], index=1)
+    period = st.selectbox("조회 기간", ["1mo", "3mo", "6mo", "1y"], index=1)
     min_abs_streak = st.slider("최소 연속일수(절댓값)", 0, 10, 0)
     show_charts = st.checkbox("최근 종가 차트 보기", value=False)
 
@@ -100,21 +114,25 @@ tickers = [t.strip() for t in tickers_text.split(",") if t.strip()]
 rows, details = [], {}
 prog = st.progress(0.0)
 for i, t in enumerate(tickers):
-    df = fetch(t, period)
+    df = fetch_daily(t, period)
     if df.empty or "Close" not in df.columns:
+        live_price = fetch_live_price(t)  # 일봉이 비어도 현재가는 시도
         rows.append({
             "티커": t, "이름": get_name(t), "연속일수": None, "기준일(전날)": None,
-            "기준가": None, "현재가": None, "누적등락(%)": None, "비고": "데이터 없음"
+            "기준가": None, "현재가(일봉)": None, "현재가(실시간)": live_price,
+            "누적등락(%)": None, "비고": "데이터 없음"
         })
     else:
         streak, last_close, pct, base_date, base_price = streak_from_close_baseline_prevday(df["Close"])
+        live_price = fetch_live_price(t)
         rows.append({
             "티커": t,
             "이름": get_name(t),
             "연속일수": streak,
             "기준일(전날)": base_date.date().isoformat() if base_date is not None else None,
             "기준가": base_price,
-            "현재가": last_close,
+            "현재가(일봉)": last_close,
+            "현재가(실시간)": live_price,
             "누적등락(%)": None if pct is None else round(pct, 2),
             "비고": None
         })
@@ -141,14 +159,16 @@ if not summary.empty and "연속일수" in summary.columns:
 def _fmt_two(v):
     return None if pd.isna(v) else float(f"{float(v):.2f}")
 
-display_cols = ["티커", "이름", "연속일수", "기준일(전날)", "기준가", "현재가", "누적등락(%)", "비고"]
+display_cols = [
+    "티커", "이름", "연속일수", "기준일(전날)", "기준가", "현재가(일봉)", "현재가(실시간)", "누적등락(%)", "비고"
+]
 show_df = summary[[c for c in display_cols if c in summary.columns]].copy()
 
-for col in ["기준가", "현재가"]:
+for col in ["기준가", "현재가(일봉)", "현재가(실시간)"]:
     if col in show_df.columns:
         show_df[col] = show_df[col].apply(_fmt_two)
+
 if "누적등락(%)" in show_df.columns:
-    # 퍼센트는 문자열로 % 붙여 보기 좋게
     show_df["누적등락(%)"] = show_df["누적등락(%)"].apply(
         lambda v: f"{v:.2f}%" if pd.notna(v) else None
     )
@@ -227,4 +247,4 @@ if show_charts and not summary.empty:
         st.line_chart(df_["Close"].dropna(), height=180)
         st.caption(f"{get_name(t)} ({t}) · 기간 {period}")
 
-st.caption("※ 무료 데이터 특성상 지연/누락 가능. 투자 판단은 본인 책임입니다.")
+st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : 전인화")
