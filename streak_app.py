@@ -1,3 +1,4 @@
+from ticker_name_api import get_name
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -77,6 +78,7 @@ for i, t in enumerate(tickers):
         streak, last_close, pct, base_date, base_price = streak_from_close_baseline_prevday(df["Close"])
         rows.append({
             "티커": t,
+            "이름": get_name(t),
             "연속일수": streak,
             "기준일(전날)": base_date.date().isoformat() if base_date is not None else None,
             "기준가": base_price,
