@@ -60,31 +60,23 @@ with st.sidebar:
     min_abs_streak = st.slider("최소 연속일수(절댓값)", 0, 10, 0)
     show_charts = st.checkbox("최근 종가 차트 보기", value=False)
 
-# ---- 요약 테이블(summary)까지 기존 코드 그대로 진행 ----
-
-# ---- 검증 테이블을 위한 추가 사이드바 ----
+# ---- summary DataFrame 만든 후 아래 코드 실행 ----
 with st.sidebar:
     st.divider()
     st.subheader("검증 테이블")
     enable_verif = st.checkbox("검증용 테이블 보기", value=False)
-    selectable_tickers = list(summary["티커"]) if not summary.empty else []
-    # 라벨을 '이름 (티커)'로 변환
-    label_map = {}
-    for t in selectable_tickers:
-        try:
-            name = get_name(t)
-        except Exception:
-            name = t
-        label_map[f"{name} ({t})"] = t
 
-    selected_labels = []
-    if enable_verif and selectable_tickers:
-        selected_labels = st.multiselect(
-            "표시할 종목 선택",
-            options=list(label_map.keys()),
-            default=[],
-            placeholder="종목을 선택하세요"
-        )
+    # summary가 비었을 때 안전 처리
+    selectable_tickers = list(summary["티커"]) if (not summary.empty and "티커" in summary.columns) else []
+
+    # 라벨을 '이름 (티커)'로 변환
+    label_map = {f"{get_name(t)} ({t})": t for t in selectable_tickers}
+    selected_labels = st.multiselect(
+        "표시할 종목 선택",
+        options=list(label_map.keys()),
+        default=[],
+        placeholder="종목을 선택하세요"
+    ) if (enable_verif and selectable_tickers) else []
     selected_tickers = [label_map[l] for l in selected_labels]
 
 tickers = [t.strip() for t in tickers_text.split(",") if t.strip()]
@@ -142,11 +134,9 @@ if enable_verif and selected_tickers:
         tmp = df[["Close"]].copy()
         tmp["전일대비 등락률(%)"] = tmp["Close"].pct_change() * 100
 
-        # 제목: 회사명 (티커)
         name = get_name(t)
         st.write(f"**{name} ({t})**")
 
-        # 포맷: 둘째 자리까지
         out = tmp.tail(10).copy()
         out["Close"] = out["Close"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
         out["전일대비 등락률(%)"] = out["전일대비 등락률(%)"].map(
@@ -155,9 +145,9 @@ if enable_verif and selected_tickers:
         st.dataframe(out, use_container_width=True)
 
 elif enable_verif:
-    # 토글은 켰지만 아직 선택한 종목이 없을 때
     st.info("사이드바에서 종목을 선택하세요.")
         
 st.caption("※ 무료 데이터 특성상 지연/누락 가능. 투자 판단은 본인 책임입니다. 제작 : 전인화")
+
 
 
