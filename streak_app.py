@@ -110,8 +110,20 @@ if show_daily:
     st.subheader("검증용: 최근 10영업일 (전일대비 등락률 %)")
     for t, df in details.items():
         tmp = df[["Close"]].copy()
-        tmp["전일대비 등락률(%)"] = tmp["Close"].pct_change()*100
-        st.write(f"**{t}**")
-        st.dataframe(tmp.tail(10).style.format({"전일대비 등락률(%)":"{:.2f}"}), use_container_width=True)
+        tmp["전일대비 등락률(%)"] = tmp["Close"].pct_change() * 100
 
-st.caption("※ 무료 데이터 특성상 지연/누락 가능. 투자 판단은 본인 책임입니다.")
+        # ✅ 제목: 회사명 (티커)
+        name = get_name(t)
+        st.write(f"**{name} ({t})**")
+
+        # ✅ 포맷팅: 종가, 등락률 둘 다 소수점 둘째자리
+        out = tmp.tail(10).copy()
+        out["Close"] = out["Close"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+        out["전일대비 등락률(%)"] = out["전일대비 등락률(%)"].map(
+            lambda v: f"{v:.2f}%" if pd.notna(v) else ""
+        )
+
+        st.dataframe(out, use_container_width=True)
+        
+st.caption("※ 무료 데이터 특성상 지연/누락 가능. 투자 판단은 본인 책임입니다. 제작 : 전인화")
+
