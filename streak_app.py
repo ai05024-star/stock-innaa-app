@@ -93,7 +93,7 @@ def fetch_live_price(ticker: str):
     return None
 
 # ====== 기본 설정 ======
-DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL"
+DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL,TSLA,360750.KS,069500.KS,000370.KS,329200.KS,292560.KS,0072R0.KS,138910.KS,017670.KS"
 
 # ---------------------------
 # (1) 기본 사이드바 설정
@@ -248,3 +248,4 @@ if show_charts and not summary.empty:
         st.caption(f"{get_name(t)} ({t}) · 기간 {period}")
 
 st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : 전인화")
+
