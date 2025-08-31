@@ -59,7 +59,33 @@ with st.sidebar:
     period = st.selectbox("조회 기간", ["1mo","3mo","6mo","1y"], index=1)
     min_abs_streak = st.slider("최소 연속일수(절댓값)", 0, 10, 0)
     show_charts = st.checkbox("최근 종가 차트 보기", value=False)
-    show_daily = st.checkbox("검증용: 최근 10영업일(전일대비 등락률%) 표시", value=True)
+
+# ---- 요약 테이블(summary)까지 기존 코드 그대로 진행 ----
+
+# ---- 검증 테이블을 위한 추가 사이드바 ----
+with st.sidebar:
+    st.divider()
+    st.subheader("검증 테이블")
+    enable_verif = st.checkbox("검증용 테이블 보기", value=False)
+    selectable_tickers = list(summary["티커"]) if not summary.empty else []
+    # 라벨을 '이름 (티커)'로 변환
+    label_map = {}
+    for t in selectable_tickers:
+        try:
+            name = get_name(t)
+        except Exception:
+            name = t
+        label_map[f"{name} ({t})"] = t
+
+    selected_labels = []
+    if enable_verif and selectable_tickers:
+        selected_labels = st.multiselect(
+            "표시할 종목 선택",
+            options=list(label_map.keys()),
+            default=[],
+            placeholder="종목을 선택하세요"
+        )
+    selected_tickers = [label_map[l] for l in selected_labels]
 
 tickers = [t.strip() for t in tickers_text.split(",") if t.strip()]
 rows, details = [], {}
@@ -106,24 +132,32 @@ if show_charts and not summary.empty:
             st.line_chart(df["Close"].dropna(), height=180)
             st.caption(f"{t} 최근 종가 ({period})")
 
-if show_daily:
+if enable_verif and selected_tickers:
     st.subheader("검증용: 최근 10영업일 (전일대비 등락률 %)")
-    for t, df in details.items():
+    for t in selected_tickers:
+        df = details.get(t)
+        if df is None or df.empty:
+            continue
+
         tmp = df[["Close"]].copy()
         tmp["전일대비 등락률(%)"] = tmp["Close"].pct_change() * 100
 
-        # ✅ 제목: 회사명 (티커)
+        # 제목: 회사명 (티커)
         name = get_name(t)
         st.write(f"**{name} ({t})**")
 
-        # ✅ 포맷팅: 종가, 등락률 둘 다 소수점 둘째자리
+        # 포맷: 둘째 자리까지
         out = tmp.tail(10).copy()
         out["Close"] = out["Close"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
         out["전일대비 등락률(%)"] = out["전일대비 등락률(%)"].map(
             lambda v: f"{v:.2f}%" if pd.notna(v) else ""
         )
-
         st.dataframe(out, use_container_width=True)
+
+elif enable_verif:
+    # 토글은 켰지만 아직 선택한 종목이 없을 때
+    st.info("사이드바에서 종목을 선택하세요.")
         
 st.caption("※ 무료 데이터 특성상 지연/누락 가능. 투자 판단은 본인 책임입니다. 제작 : 전인화")
+
 
