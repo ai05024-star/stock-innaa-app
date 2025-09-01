@@ -104,6 +104,7 @@ with st.sidebar:
     period = st.selectbox("조회 기간", ["1mo", "3mo", "6mo", "1y"], index=1)
     min_abs_streak = st.slider("최소 연속일수(절댓값)", 0, 10, 0)
     show_charts = st.checkbox("최근 종가 차트 보기", value=False)
+    apply_filter_to_charts = st.checkbox("차트에 요약 필터 적용", value=False)
 
 # 입력 파싱
 tickers = [t.strip() for t in tickers_text.split(",") if t.strip()]
@@ -238,14 +239,25 @@ elif enable_verif:
 # ---------------------------
 # (6) 선택: 차트
 # ---------------------------
-if show_charts and not summary.empty:
+if show_charts:
     st.subheader("최근 종가 차트")
-    for t in summary["티커"]:
+
+    # ✅ 요약 필터 적용 여부 선택
+    if apply_filter_to_charts and (not summary.empty) and ("티커" in summary.columns):
+        chart_tickers = summary["티커"].tolist()
+    else:
+        chart_tickers = list(details.keys())
+
+    for t in chart_tickers:
         df_ = details.get(t)
         if df_ is None or df_.empty:
             continue
-        st.line_chart(df_["Close"].dropna(), height=180)
-        st.caption(f"{get_name(t)} ({t}) · 기간 {period}")
-
+        s = df_["Close"].dropna()
+        if s.empty:
+            continue
+        st.write(f"**{get_name(t)} ({t})**")
+        st.line_chart(s, height=180)
+        
 st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : 전인화")
+
 
