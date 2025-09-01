@@ -75,7 +75,7 @@ def fetch_live_price(ticker: str):
     return None
 
 # ====== 기본 설정 ======
-DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL"
+DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL,TSLA,360750.KS,069500.KS,000370.KS,329200.KS,292560.KS,0072R0.KS,138910.KS,017670.KS"
 
 # (1) 사이드바 설정 — 차트 관련 옵션 제거
 with st.sidebar:
@@ -180,3 +180,4 @@ elif enable_verif:
     st.info("사이드바에서 종목을 선택하세요.")
 
 st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : Jeon InHwa")
+
