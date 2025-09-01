@@ -101,10 +101,14 @@ DEFAULT_TICKERS = "003490.KS,005930.KS,AAPL,TSLA,360750.KS,069500.KS,000370.KS,3
 with st.sidebar:
     st.header("설정")
     tickers_text = st.text_area("종목들(쉼표로 구분)", value=DEFAULT_TICKERS, height=100)
-    period = st.selectbox("조회 기간", ["1mo", "3mo", "6mo", "1y"], index=1)
+    period = st.selectbox("조회 기간", ["1mo","3mo","6mo","1y"], index=1)
     min_abs_streak = st.slider("최소 연속일수(절댓값)", 0, 10, 0)
     show_charts = st.checkbox("최근 종가 차트 보기", value=False)
-    apply_filter_to_charts = st.checkbox("차트에 요약 필터 적용", value=False)
+    chart_scale = st.selectbox(                     # ✅ 추가
+        "차트 스케일",
+        ["원값(그대로)", "기준=첫날 100", "첫날 대비 %"],
+        index=1  # 기본: 기준=첫날 100
+    )
 
 # 입력 파싱
 tickers = [t.strip() for t in tickers_text.split(",") if t.strip()]
@@ -239,25 +243,38 @@ elif enable_verif:
 # ---------------------------
 # (6) 선택: 차트
 # ---------------------------
-if show_charts:
+if show_charts and (not summary.empty) and ("티커" in summary.columns):
     st.subheader("최근 종가 차트")
-
-    # ✅ 요약 필터 적용 여부 선택
-    if apply_filter_to_charts and (not summary.empty) and ("티커" in summary.columns):
-        chart_tickers = summary["티커"].tolist()
-    else:
-        chart_tickers = list(details.keys())
-
-    for t in chart_tickers:
+    for t in summary["티커"]:
         df_ = details.get(t)
         if df_ is None or df_.empty:
             continue
-        s = df_["Close"].dropna()
+
+        s = df_["Close"].dropna().astype(float)
         if s.empty:
             continue
-        st.write(f"**{get_name(t)} ({t})**")
-        st.line_chart(s, height=180)
+
+        # ✅ 스케일 변환
+        if chart_scale == "원값(그대로)":
+            y = s
+            unit_note = ""
+        elif chart_scale == "기준=첫날 100":
+            base = s.iloc[0]
+            if base == 0 or pd.isna(base):
+                continue
+            y = s / base * 100.0
+            unit_note = " (기준=100)"
+        else:  # "첫날 대비 %"
+            base = s.iloc[0]
+            if base == 0 or pd.isna(base):
+                continue
+            y = (s / base - 1.0) * 100.0
+            unit_note = " (변화율 %)"
+
+        st.write(f"**{get_name(t)} ({t})**{unit_note}")
+        st.line_chart(y, height=180)
         
 st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : 전인화")
+
 
 
