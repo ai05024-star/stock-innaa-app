@@ -243,6 +243,35 @@ elif enable_verif:
 # ---------------------------
 # (6) 선택: 차트
 # ---------------------------
+def _normalize_for_chart(s: pd.Series, mode: str, eps: float = 1e-12):
+    """
+    s: 종가 Series
+    mode: "원값(그대로)" | "기준=첫날 100" | "첫날 대비 %"
+    eps: 0 나눗셈/미세값 방지
+    return: (Series or None, caption_suffix)
+    """
+    # 숫자화 + NaN 제거
+    s = pd.to_numeric(s, errors="coerce").dropna()
+    if s.empty:
+        return None, " (데이터 없음)"
+
+    # 첫 유효·유한·비제로 값(스칼라) 찾기 → 기준값으로 사용
+    vals = s.values.astype(float)
+    mask = np.isfinite(vals) & (np.abs(vals) > eps)
+    if not mask.any():
+        return None, " (유효 기준값 없음)"
+    base = float(vals[np.argmax(mask)])  # ← 반드시 스칼라
+
+    if mode == "원값(그대로)":
+        return s, ""
+    elif mode == "기준=첫날 100":
+        y = s / base * 100.0
+        return y, " (기준=100)"
+    else:  # "첫날 대비 %"
+        y = (s / base - 1.0) * 100.0
+        return y, " (변화율 %)"
+
+# 차트: summary에 남은 종목만 그림 (자동 필터 적용)
 if show_charts and (not summary.empty) and ("티커" in summary.columns):
     st.subheader("최근 종가 차트")
     for t in summary["티커"]:
@@ -250,31 +279,16 @@ if show_charts and (not summary.empty) and ("티커" in summary.columns):
         if df_ is None or df_.empty:
             continue
 
-        s = df_["Close"].dropna().astype(float)
-        if s.empty:
+        s = df_["Close"]
+        y, suffix = _normalize_for_chart(s, chart_scale)
+        if y is None or y.empty:
             continue
 
-        # ✅ 스케일 변환
-        if chart_scale == "원값(그대로)":
-            y = s
-            unit_note = ""
-        elif chart_scale == "기준=첫날 100":
-            base = s.iloc[0]
-            if base == 0 or pd.isna(base):
-                continue
-            y = s / base * 100.0
-            unit_note = " (기준=100)"
-        else:  # "첫날 대비 %"
-            base = s.iloc[0]
-            if base == 0 or pd.isna(base):
-                continue
-            y = (s / base - 1.0) * 100.0
-            unit_note = " (변화율 %)"
-
-        st.write(f"**{get_name(t)} ({t})**{unit_note}")
+        st.write(f"**{get_name(t)} ({t})**{suffix}")
         st.line_chart(y, height=180)
         
 st.caption("※ '현재가(실시간)'은 거래소/종목에 따라 지연일 수 있습니다. 제작 : 전인화")
+
 
 
 
